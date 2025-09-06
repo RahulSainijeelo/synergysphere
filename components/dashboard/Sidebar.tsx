@@ -7,13 +7,12 @@ import {
   SidebarFooter,
   SidebarGroup,
   SidebarGroupContent,
-  SidebarGroupLabel,
   SidebarHeader,
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
 } from '@/components/ui/sidebar';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 import { 
   FolderIcon, 
@@ -23,23 +22,34 @@ import {
   LogOutIcon,
   ChevronUpIcon
 } from 'lucide-react';
+import { useAuth } from '@/context/AuthContext';
 
 const menuItems = [
   {
     title: 'Projects',
     icon: FolderIcon,
-    url: '/projects',
+    url: '/dashboard/',
     isActive: true,
   },
   {
     title: 'My Tasks',
     icon: CheckSquareIcon,
-    url: '/tasks',
+    url: '/dashboard/tasks',
     isActive: false,
   },
 ];
 
 const AppSidebar = () => {
+  const { user, logout } = useAuth();
+
+  const handleLogout = async () => {
+    try {
+      await logout();
+    } catch (error) {
+      console.error('Logout error:', error);
+    }
+  };
+
   return (
     <Sidebar className="bg-gray-950 border-gray-800">
       <SidebarHeader className="border-b border-gray-800 p-4">
@@ -92,12 +102,13 @@ const AppSidebar = () => {
           <DropdownMenu.Trigger asChild>
             <button className="flex items-center space-x-3 w-full p-2 rounded-lg hover:bg-gray-800 transition-colors">
               <Avatar className="w-8 h-8">
-                <AvatarImage src="/user-avatar.jpg" alt="Test User" />
-                <AvatarFallback className="bg-gray-600 text-white">TU</AvatarFallback>
+                <AvatarFallback className="bg-gray-600 text-white">
+                  {user?.email?.charAt(0).toUpperCase()}
+                </AvatarFallback>
               </Avatar>
               <div className="flex-1 text-left">
-                <p className="text-white text-sm font-medium">Test User</p>
-                <p className="text-gray-400 text-xs">user@email</p>
+                <p className="text-white text-sm font-medium">User</p>
+                <p className="text-gray-400 text-xs">{user?.email}</p>
               </div>
               <ChevronUpIcon className="w-4 h-4 text-gray-400" />
             </button>
@@ -120,7 +131,10 @@ const AppSidebar = () => {
               
               <DropdownMenu.Separator className="h-px bg-gray-700 my-1" />
               
-              <DropdownMenu.Item className="flex items-center space-x-2 px-3 py-2 text-red-400 hover:bg-gray-700 hover:text-red-300 rounded cursor-pointer">
+              <DropdownMenu.Item 
+                className="flex items-center space-x-2 px-3 py-2 text-red-400 hover:bg-gray-700 hover:text-red-300 rounded cursor-pointer"
+                onClick={handleLogout}
+              >
                 <LogOutIcon className="w-4 h-4" />
                 <span>Logout</span>
               </DropdownMenu.Item>

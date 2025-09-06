@@ -6,11 +6,11 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Card, CardContent, CardHeader } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import * as Select from '@radix-ui/react-select';
 import * as Dialog from '@radix-ui/react-dialog';
+import { CreateTaskData, Task } from '@/types/task';
 import { 
-  CalendarIcon, 
   UploadIcon, 
   ChevronDownIcon, 
   XIcon,
@@ -18,16 +18,24 @@ import {
   TagIcon,
   ImageIcon,
   FileTextIcon,
-  CalendarDaysIcon
+  CalendarDaysIcon,
+  FolderIcon,
+  AlertCircleIcon,
+  CheckIcon
 } from 'lucide-react';
+import { useAuth } from '@/context/AuthContext';
+import { TaskService } from '@/service/task.service';
 
 interface TaskFormData {
   name: string;
   assignee: string;
   tags: string;
   deadline: string;
-  image?: File | null;
   description: string;
+  project: string;
+  priority: 'high' | 'medium' | 'low';
+  status: 'todo' | 'in-progress' | 'completed';
+  image?: File | null;
 }
 
 interface User {
@@ -53,55 +61,100 @@ const mockUsers: User[] = [
 const TaskFormPage: React.FC<TaskFormPageProps> = ({ mode = 'create', taskId }) => {
   const router = useRouter();
   const params = useParams();
+  const { user } = useAuth();
   
   const [formData, setFormData] = useState<TaskFormData>({
     name: '',
     assignee: '',
     tags: '',
     deadline: '',
-    image: null,
     description: '',
+    project: '',
+    priority: 'medium',
+    status: 'todo',
+    image: null,
   });
   
+  const [existingTask, setExistingTask] = useState<Task | null>(null);
   const [selectedAssignee, setSelectedAssignee] = useState<User | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [isDiscardDialogOpen, setIsDiscardDialogOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string>('');
+  const [success, setSuccess] = useState<string>('');
 
   // Determine if we're in edit mode
   const isEditMode = mode === 'edit' || (params?.id && params.id !== 'create');
-  const currentTaskId = taskId || params?.id;
+  const currentTaskId = taskId || params?.id as string;
 
   // Load existing task data for edit mode
   useEffect(() => {
     if (isEditMode && currentTaskId) {
-      // Mock loading existing task data
-      const mockTaskData = {
-        name: 'Plugin UI Components',
-        assignee: '1', // Magnificent Hawk's ID
-        tags: 'ui, components, plugin',
-        deadline: '2025-09-10',
-        description: 'Create modern UI components for the new plugin system with accessibility features and responsive design.',
-      };
-      
-      setFormData(mockTaskData);
-      setSelectedAssignee(mockUsers.find(user => user.id === mockTaskData.assignee) || null);
+      loadTask();
     }
   }, [isEditMode, currentTaskId]);
 
-  const handleInputChange = (field: keyof TaskFormData, value: string) => {
+  const loadTask = async () => {
+    setIsLoading(true);
+    setError('');
+    
+    try {
+      const task = await TaskService.getTask(currentTaskId);
+      setExistingTask(task);
+      
+      setFormData({
+        name: task.name,
+        assignee: task.assignee,
+        tags: task.tags.join(', '),
+        deadline: task.deadline,
+        description: task.description,
+        project: task.project,
+        priority: task.priority,
+        status: task.status,
+        image: null,
+      });
+      
+      setSelectedAssignee(mockUsers.find(user => user.name === task.assignee) || null);
+      
+      if (task.imageUrl) {
+        setImagePreview(task.imageUrl);
+      }
+    } catch (error: any) {
+      console.error('Failed to load task:', error);
+      setError('Failed to load task data: ' + error.message);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleInputChange = (field: keyof TaskFormData, value: string | File) => {
     setFormData(prev => ({ ...prev, [field]: value }));
+    setError(''); // Clear error when user starts typing
+    setSuccess(''); // Clear success message
   };
 
   const handleAssigneeSelect = (userId: string) => {
-    const user = mockUsers.find(u => u.id === userId);
-    setSelectedAssignee(user || null);
-    setFormData(prev => ({ ...prev, assignee: userId }));
+    const selectedUser = mockUsers.find(u => u.id === userId);
+    setSelectedAssignee(selectedUser || null);
+    setFormData(prev => ({ ...prev, assignee: selectedUser?.name || '' }));
   };
 
   const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
+      // Validate file size (max 10MB)
+      if (file.size > 10 * 1024 * 1024) {
+        setError('Image size must be less than 10MB');
+        return;
+      }
+
+      // Validate file type
+      if (!file.type.startsWith('image/')) {
+        setError('Please select a valid image file');
+        return;
+      }
+
       setFormData(prev => ({ ...prev, image: file }));
       
       // Create preview
@@ -113,25 +166,86 @@ const TaskFormPage: React.FC<TaskFormPageProps> = ({ mode = 'create', taskId }) 
     }
   };
 
+  const validateForm = (): boolean => {
+    if (!formData.name.trim()) {
+      setError('Task name is required');
+      return false;
+    }
+
+    if (!formData.assignee.trim()) {
+      setError('Please select an assignee');
+      return false;
+    }
+
+    if (!formData.project.trim()) {
+      setError('Project name is required');
+      return false;
+    }
+
+    if (!formData.deadline) {
+      setError('Deadline is required');
+      return false;
+    }
+
+    // Validate deadline is not in the past
+    const deadlineDate = new Date(formData.deadline);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    if (deadlineDate < today) {
+      setError('Deadline cannot be in the past');
+      return false;
+    }
+
+    return true;
+  };
+
   const handleSave = async () => {
+    if (!validateForm()) return;
+    if (!user) {
+      setError('You must be logged in to create tasks');
+      return;
+    }
+
     setIsSaving(true);
+    setError('');
+    setSuccess('');
     
     try {
-      // Validate form
-      if (!formData.name.trim()) {
-        alert('Task name is required');
-        return;
+      const taskData: CreateTaskData = {
+        name: formData.name.trim(),
+        assignee: formData.assignee.trim(),
+        tags: formData.tags.trim(),
+        deadline: formData.deadline,
+        description: formData.description.trim(),
+        project: formData.project.trim(),
+        priority: formData.priority,
+        status: formData.status,
+        image: formData.image || undefined,
+      };
+
+      if (isEditMode && currentTaskId) {
+        // Update existing task
+        await TaskService.updateTask({
+          ...taskData,
+          id: currentTaskId,
+          imageUrl: existingTask?.imageUrl || '',
+        });
+        setSuccess('Task updated successfully!');
+      } else {
+        // Create new task
+        await TaskService.createTask(taskData, user.uid);
+        setSuccess('Task created successfully!');
       }
 
-      // Mock API call
-      console.log('Saving task:', formData);
-      await new Promise(resolve => setTimeout(resolve, 1000)); // Simulate API delay
-      
-      // Navigate back to tasks list
-      router.push('/dashboard/tasks');
-    } catch (error) {
+      // Redirect after short delay to show success message
+      setTimeout(() => {
+        router.push('/dashboard/tasks');
+      }, 1500);
+
+    } catch (error: any) {
       console.error('Error saving task:', error);
-      alert('Error saving task. Please try again.');
+      setError(error.message || 'Failed to save task. Please try again.');
     } finally {
       setIsSaving(false);
     }
@@ -144,6 +258,18 @@ const TaskFormPage: React.FC<TaskFormPageProps> = ({ mode = 'create', taskId }) 
   const confirmDiscard = () => {
     router.push('/dashboard/tasks');
   };
+
+  // Show loading state
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-gray-900 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
+          <p className="text-gray-400">Loading task data...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-900 p-6">
@@ -158,6 +284,7 @@ const TaskFormPage: React.FC<TaskFormPageProps> = ({ mode = 'create', taskId }) 
             <Button 
               variant="outline" 
               onClick={handleDiscard}
+              disabled={isSaving}
               className="border-gray-600 text-gray-300 hover:bg-gray-700"
             >
               Discard
@@ -165,12 +292,34 @@ const TaskFormPage: React.FC<TaskFormPageProps> = ({ mode = 'create', taskId }) 
             <Button 
               onClick={handleSave}
               disabled={isSaving}
-              className="bg-blue-600 hover:bg-blue-700 text-white"
+              className="bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-50"
             >
-              {isSaving ? 'Saving...' : 'Save'}
+              {isSaving ? (
+                <>
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                  {isEditMode ? 'Updating...' : 'Creating...'}
+                </>
+              ) : (
+                isEditMode ? 'Update Task' : 'Create Task'
+              )}
             </Button>
           </div>
         </div>
+
+        {/* Error/Success Messages */}
+        {error && (
+          <div className="bg-red-900/50 border border-red-500 text-red-200 px-4 py-3 rounded-md mb-6 flex items-center">
+            <AlertCircleIcon className="w-5 h-5 mr-2 flex-shrink-0" />
+            {error}
+          </div>
+        )}
+
+        {success && (
+          <div className="bg-green-900/50 border border-green-500 text-green-200 px-4 py-3 rounded-md mb-6 flex items-center">
+            <CheckIcon className="w-5 h-5 mr-2 flex-shrink-0" />
+            {success}
+          </div>
+        )}
 
         {/* Form */}
         <Card className="bg-gray-800 border-gray-700">
@@ -179,13 +328,28 @@ const TaskFormPage: React.FC<TaskFormPageProps> = ({ mode = 'create', taskId }) 
             <div className="space-y-2">
               <Label className="text-white font-medium flex items-center">
                 <FileTextIcon className="w-4 h-4 mr-2" />
-                Name
+                Task Name *
               </Label>
               <Input
                 value={formData.name}
                 onChange={(e) => handleInputChange('name', e.target.value)}
-                className="bg-gray-700 border-gray-600 text-white placeholder-gray-400"
+                className="bg-gray-700 border-gray-600 text-white placeholder-gray-400 focus:border-blue-500"
                 placeholder="Enter task name"
+                required
+              />
+            </div>
+
+            {/* Project Field */}
+            <div className="space-y-2">
+              <Label className="text-white font-medium flex items-center">
+                <FolderIcon className="w-4 h-4 mr-2" />
+                Project *
+              </Label>
+              <Input
+                value={formData.project}
+                onChange={(e) => handleInputChange('project', e.target.value)}
+                className="bg-gray-700 border-gray-600 text-white placeholder-gray-400 focus:border-blue-500"
+                placeholder="Enter project name"
                 required
               />
             </div>
@@ -194,7 +358,7 @@ const TaskFormPage: React.FC<TaskFormPageProps> = ({ mode = 'create', taskId }) 
             <div className="space-y-2">
               <Label className="text-white font-medium flex items-center">
                 <UserIcon className="w-4 h-4 mr-2" />
-                Assignee
+                Assignee *
               </Label>
               
               <Select.Root 
@@ -243,6 +407,73 @@ const TaskFormPage: React.FC<TaskFormPageProps> = ({ mode = 'create', taskId }) 
               </Select.Root>
             </div>
 
+            {/* Priority and Status Row */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Priority Field */}
+              <div className="space-y-2">
+                <Label className="text-white font-medium">Priority</Label>
+                <Select.Root 
+                  value={formData.priority} 
+                  onValueChange={(value: 'high' | 'medium' | 'low') => handleInputChange('priority', value)}
+                >
+                  <Select.Trigger className="flex items-center justify-between w-full p-3 bg-gray-700 border border-gray-600 rounded-md text-white hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    <Select.Value />
+                    <Select.Icon>
+                      <ChevronDownIcon className="w-4 h-4 text-gray-400" />
+                    </Select.Icon>
+                  </Select.Trigger>
+
+                  <Select.Portal>
+                    <Select.Content className="bg-gray-700 border border-gray-600 rounded-lg shadow-lg z-50">
+                      <Select.Viewport className="p-1">
+                        <Select.Item value="high" className="px-3 py-2 text-white hover:bg-gray-600 rounded cursor-pointer">
+                          <Select.ItemText>High</Select.ItemText>
+                        </Select.Item>
+                        <Select.Item value="medium" className="px-3 py-2 text-white hover:bg-gray-600 rounded cursor-pointer">
+                          <Select.ItemText>Medium</Select.ItemText>
+                        </Select.Item>
+                        <Select.Item value="low" className="px-3 py-2 text-white hover:bg-gray-600 rounded cursor-pointer">
+                          <Select.ItemText>Low</Select.ItemText>
+                        </Select.Item>
+                      </Select.Viewport>
+                    </Select.Content>
+                  </Select.Portal>
+                </Select.Root>
+              </div>
+
+              {/* Status Field */}
+              <div className="space-y-2">
+                <Label className="text-white font-medium">Status</Label>
+                <Select.Root 
+                  value={formData.status} 
+                  onValueChange={(value: 'todo' | 'in-progress' | 'completed') => handleInputChange('status', value)}
+                >
+                  <Select.Trigger className="flex items-center justify-between w-full p-3 bg-gray-700 border border-gray-600 rounded-md text-white hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    <Select.Value />
+                    <Select.Icon>
+                      <ChevronDownIcon className="w-4 h-4 text-gray-400" />
+                    </Select.Icon>
+                  </Select.Trigger>
+
+                  <Select.Portal>
+                    <Select.Content className="bg-gray-700 border border-gray-600 rounded-lg shadow-lg z-50">
+                      <Select.Viewport className="p-1">
+                        <Select.Item value="todo" className="px-3 py-2 text-white hover:bg-gray-600 rounded cursor-pointer">
+                          <Select.ItemText>To Do</Select.ItemText>
+                        </Select.Item>
+                        <Select.Item value="in-progress" className="px-3 py-2 text-white hover:bg-gray-600 rounded cursor-pointer">
+                          <Select.ItemText>In Progress</Select.ItemText>
+                        </Select.Item>
+                        <Select.Item value="completed" className="px-3 py-2 text-white hover:bg-gray-600 rounded cursor-pointer">
+                          <Select.ItemText>Completed</Select.ItemText>
+                        </Select.Item>
+                      </Select.Viewport>
+                    </Select.Content>
+                  </Select.Portal>
+                </Select.Root>
+              </div>
+            </div>
+
             {/* Tags Field */}
             <div className="space-y-2">
               <Label className="text-white font-medium flex items-center">
@@ -252,7 +483,7 @@ const TaskFormPage: React.FC<TaskFormPageProps> = ({ mode = 'create', taskId }) 
               <Input
                 value={formData.tags}
                 onChange={(e) => handleInputChange('tags', e.target.value)}
-                className="bg-gray-700 border-gray-600 text-white placeholder-gray-400"
+                className="bg-gray-700 border-gray-600 text-white placeholder-gray-400 focus:border-blue-500"
                 placeholder="Enter tags separated by commas"
               />
               <p className="text-xs text-gray-400">Separate multiple tags with commas</p>
@@ -262,13 +493,15 @@ const TaskFormPage: React.FC<TaskFormPageProps> = ({ mode = 'create', taskId }) 
             <div className="space-y-2">
               <Label className="text-white font-medium flex items-center">
                 <CalendarDaysIcon className="w-4 h-4 mr-2" />
-                Deadline
+                Deadline *
               </Label>
               <Input
                 type="date"
                 value={formData.deadline}
                 onChange={(e) => handleInputChange('deadline', e.target.value)}
-                className="bg-gray-700 border-gray-600 text-white placeholder-gray-400"
+                className="bg-gray-700 border-gray-600 text-white placeholder-gray-400 focus:border-blue-500"
+                min={new Date().toISOString().split('T')[0]} // Prevent past dates
+                required
               />
             </div>
 
@@ -292,7 +525,7 @@ const TaskFormPage: React.FC<TaskFormPageProps> = ({ mode = 'create', taskId }) 
                   className="flex items-center px-4 py-2 bg-gray-700 border border-gray-600 rounded-md text-white hover:bg-gray-600 cursor-pointer transition-colors"
                 >
                   <UploadIcon className="w-4 h-4 mr-2" />
-                  Upload Image
+                  {imagePreview ? 'Change Image' : 'Upload Image'}
                 </label>
                 
                 {imagePreview && (
@@ -314,6 +547,7 @@ const TaskFormPage: React.FC<TaskFormPageProps> = ({ mode = 'create', taskId }) 
                   </div>
                 )}
               </div>
+              <p className="text-xs text-gray-400">Maximum file size: 10MB. Supported formats: JPG, PNG, GIF</p>
             </div>
 
             {/* Description Field */}
@@ -324,8 +558,8 @@ const TaskFormPage: React.FC<TaskFormPageProps> = ({ mode = 'create', taskId }) 
               </Label>
               <Textarea
                 value={formData.description}
-                onChange={(e:any) => handleInputChange('description', e.target.value)}
-                className="bg-gray-700 border-gray-600 text-white placeholder-gray-400 min-h-32 resize-none"
+                onChange={(e) => handleInputChange('description', e.target.value)}
+                className="bg-gray-700 border-gray-600 text-white placeholder-gray-400 min-h-32 resize-none focus:border-blue-500"
                 placeholder="Enter task description"
                 rows={6}
               />
