@@ -4,27 +4,36 @@ import React, { useState } from 'react';
 import * as Form from '@radix-ui/react-form';
 import * as Label from '@radix-ui/react-label';
 import Link from 'next/link';
+import { useAuth } from '@/context/AuthContext';
 
 const SignupPage = () => {
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
+  
+  const { signup } = useAuth();
 
-  const handleSubmit = (e:any) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    console.log('Signup Details:', {
-      firstName,
-      lastName,
-      email,
-      password,
-    });
+    setError('');
+    setLoading(true);
+
+    try {
+      await signup(email, password);
+    } catch (err: any) {
+      setError(err.message || 'Signup failed');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
       <div className="sm:mx-auto sm:w-full sm:max-w-md">
-        {/* App Icon - Replace with your actual icon */}
+        {/* App Icon */}
         <div className="flex justify-center mb-6">
           <div className="w-16 h-16 bg-blue-600 rounded-lg flex items-center justify-center">
             <svg
@@ -47,11 +56,16 @@ const SignupPage = () => {
             <h2 className="text-2xl font-medium text-gray-900">
               Create account
             </h2>
+            <Link
+              href="/sign-in"
+              className="text-sm text-orange-500 hover:text-orange-600 underline"
+            >
+              login instead
+            </Link>
           </div>
 
           <Form.Root className="space-y-6" onSubmit={handleSubmit}>
-            {/* First Name and Last Name Row */}
-            <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
+            <div className="grid grid-cols-2 gap-4">
               <Form.Field name="firstName">
                 <div className="space-y-2">
                   <Form.Label asChild>
@@ -123,47 +137,29 @@ const SignupPage = () => {
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     className="w-full px-3 py-3 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    minLength={8}
+                    minLength={6}
                     required
                   />
                 </Form.Control>
-                <Form.Message className="text-xs text-gray-500" match="tooShort">
-                  Password must be at least 8 characters long
-                </Form.Message>
               </div>
             </Form.Field>
+
+            {error && (
+              <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-md text-sm">
+                {error}
+              </div>
+            )}
 
             <Form.Submit asChild>
               <button
                 type="submit"
-                className="w-full flex justify-center py-3 px-4 rounded-full text-sm font-medium text-white bg-gray-400 hover:bg-gray-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 transition-colors"
+                disabled={loading}
+                className="w-full flex justify-center py-3 px-4 rounded-full text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors disabled:opacity-50"
               >
-                Create Account
+                {loading ? 'Creating account...' : 'Create Account'}
               </button>
             </Form.Submit>
           </Form.Root>
-
-          <div className="mt-6">
-            <div className="relative">
-              <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-gray-300" />
-              </div>
-              <div className="relative flex justify-center text-sm">
-                <span className="px-2 bg-white text-gray-500">
-                  Already have an account?
-                </span>
-              </div>
-            </div>
-
-            <div className="mt-6">
-              <Link
-                href="/sign-in"
-                className="w-full flex justify-center py-3 px-4 rounded-full text-sm font-medium text-gray-700 bg-white border border-gray-300 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 transition-colors"
-              >
-                Sign in to existing account
-              </Link>
-            </div>
-          </div>
         </div>
       </div>
     </div>

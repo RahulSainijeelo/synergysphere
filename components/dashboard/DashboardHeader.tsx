@@ -7,6 +7,7 @@ import { SidebarTrigger } from '@/components/ui/sidebar';
 import * as Dialog from '@radix-ui/react-dialog';
 import { SearchIcon, PlusIcon, XIcon } from 'lucide-react';
 import Breadcrumbs from './Breadcrumb';
+import Link from 'next/link';
 
 interface DashboardHeaderProps {
   className?: string;
@@ -56,80 +57,12 @@ const DashboardHeader: React.FC<DashboardHeaderProps> = ({
             </div>
           </div>
 
-          <Dialog.Root open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-            <Dialog.Trigger asChild>
-              <Button className="bg-blue-600 hover:bg-blue-700 text-white">
+           <Link href="/dashboard/tasks/new">
+           <Button className="bg-blue-600 hover:bg-blue-700 text-white">
                 <PlusIcon className="w-4 h-4 mr-2" />
                 New Task
               </Button>
-            </Dialog.Trigger>
-
-            <Dialog.Portal>
-              <Dialog.Overlay className="fixed inset-0 bg-black/50 z-50" />
-              <Dialog.Content className="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-gray-800 border border-gray-700 rounded-lg shadow-xl p-6 w-full max-w-md z-50">
-                <div className="flex items-center justify-between mb-4">
-                  <Dialog.Title className="text-white text-lg font-semibold">
-                    Create New Task
-                  </Dialog.Title>
-                  <Dialog.Close asChild>
-                    <button 
-                      className="text-gray-400 hover:text-white"
-                      onClick={handleCancel}
-                    >
-                      <XIcon className="w-5 h-5" />
-                    </button>
-                  </Dialog.Close>
-                </div>
-
-                <form className="space-y-4" onSubmit={handleSubmit}>
-                  <div>
-                    <label className="block text-gray-300 text-sm font-medium mb-2">
-                      Task Title
-                    </label>
-                    <Input 
-                      placeholder="Enter task title"
-                      className="bg-gray-700 border-gray-600 text-white placeholder-gray-400"
-                      value={taskTitle}
-                      onChange={(e) => setTaskTitle(e.target.value)}
-                      required
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-gray-300 text-sm font-medium mb-2">
-                      Description
-                    </label>
-                    <textarea 
-                      placeholder="Enter task description"
-                      className="w-full p-3 bg-gray-700 border border-gray-600 rounded-md text-white placeholder-gray-400 resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                      rows={3}
-                      value={taskDescription}
-                      onChange={(e) => setTaskDescription(e.target.value)}
-                    />
-                  </div>
-
-                  <div className="flex space-x-3 pt-4">
-                    <Button 
-                      type="submit" 
-                      className="flex-1 bg-blue-600 hover:bg-blue-700 text-white"
-                    >
-                      Create Task
-                    </Button>
-                    <Dialog.Close asChild>
-                      <Button 
-                        type="button"
-                        variant="outline" 
-                        className="flex-1 border-gray-600 text-gray-300 hover:bg-gray-700"
-                        onClick={handleCancel}
-                      >
-                        Cancel
-                      </Button>
-                    </Dialog.Close>
-                  </div>
-                </form>
-              </Dialog.Content>
-            </Dialog.Portal>
-          </Dialog.Root>
+           </Link>
         </div>
       </div>
 

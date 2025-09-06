@@ -4,23 +4,34 @@ import React, { useState } from 'react';
 import * as Form from '@radix-ui/react-form';
 import * as Label from '@radix-ui/react-label';
 import Link from 'next/link';
+import { useAuth } from '@/context/AuthContext';
 
 const LoginPage = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
+  
+  const { login } = useAuth();
 
-  const handleSubmit = (e:any) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    console.log('Login Details:', {
-      email,
-      password,
-    });
+    setError('');
+    setLoading(true);
+
+    try {
+      await login(email, password);
+    } catch (err: any) {
+      setError(err.message || 'Login failed');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
       <div className="sm:mx-auto sm:w-full sm:max-w-md">
-        {/* App Icon - Replace with your actual icon */}
+        {/* App Icon */}
         <div className="flex justify-center mb-6">
           <div className="w-16 h-16 bg-blue-600 rounded-lg flex items-center justify-center">
             <svg
@@ -90,6 +101,12 @@ const LoginPage = () => {
               </div>
             </Form.Field>
 
+            {error && (
+              <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-md text-sm">
+                {error}
+              </div>
+            )}
+
             <div className="flex justify-start">
               <Link
                 href="/forgot-password"
@@ -102,9 +119,10 @@ const LoginPage = () => {
             <Form.Submit asChild>
               <button
                 type="submit"
-                className="w-full flex justify-center py-3 px-4 rounded-full text-sm font-medium text-white bg-gray-400 hover:bg-gray-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 transition-colors"
+                disabled={loading}
+                className="w-full flex justify-center py-3 px-4 rounded-full text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors disabled:opacity-50"
               >
-                Login
+                {loading ? 'Logging in...' : 'Login'}
               </button>
             </Form.Submit>
           </Form.Root>
